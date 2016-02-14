@@ -43,6 +43,16 @@ Local<Function> bufferConstructor =
     Local<Object> name = Nan::NewBuffer(size).ToLocalChecked(); \
     unsigned char* name ## _ptr = (unsigned char*)Buffer::Data(name)
 
+#define NEW_BUFFER_AND_PTR_AS_LEN(i, name, size) \
+    Local<Object> name = Nan::NewBuffer(size).ToLocalChecked(); \
+    unsigned char* name ## _ptr = (unsigned char*)Buffer::Data(name); \
+    unsigned long long name ## _size = Buffer::Length(info[i]->ToObject()); \
+    if( name ## _size == 0 ) { \
+        std::ostringstream oss; \
+        oss << "argument " << #name << " length cannot be zero" ; \
+        return Nan::ThrowError(oss.str().c_str()); \
+    }
+
 #define GET_ARG_AS(i, NAME, TYPE) \
     ARG_IS_BUFFER(i,#NAME); \
     TYPE NAME = (TYPE) Buffer::Data(info[i]->ToObject()); \
@@ -304,6 +314,32 @@ NAN_METHOD(bind_crypto_hash) {
         return info.GetReturnValue().Set(hash);
     } else {
         return info.GetReturnValue().Set(Nan::Null());
+    }
+}
+
+/**
+ * int crypto_generichash(
+ *    unsigned char * hbuf,
+ *    unsigned long long hlen,
+ *    const unsigned char * msg,
+ *    unsigned long long mlen,
+ *    const unsigned char * key,
+ *    unsigned long long klen)
+*/
+NAN_METHOD(bind_crypto_generichash) {
+    Nan::EscapableHandleScope scope;
+
+    NUMBER_OF_MANDATORY_ARGS(1,"argument message must be a buffer");
+
+    GET_ARG_AS_UCHAR(0,msg);
+    GET_ARG_AS_UCHAR_LEN(1, key, crypto_generichash_KEYBYTES);
+
+    NEW_BUFFER_AND_PTR_AS_LEN(0, hash, crypto_generichash_BYTES);
+
+    if( crypto_generichash(hash_ptr, hash_size, msg, msg_size, key, key_size) == 0 ) {
+      return info.GetReturnValue().Set(hash);
+    } else {
+      return info.GetReturnValue().Set(Nan::Null());
     }
 }
 
@@ -1668,6 +1704,11 @@ void RegisterModule(Handle<Object> target) {
     NEW_INT_PROP(crypto_shorthash_BYTES);
     NEW_INT_PROP(crypto_shorthash_KEYBYTES);
     NEW_STRING_PROP(crypto_shorthash_PRIMITIVE);
+
+    // Generic Hash
+    NEW_METHOD(crypto_generichash);
+    NEW_INT_PROP(crypto_generichash_BYTES);
+    NEW_INT_PROP(crypto_generichash_KEYBYTES);
 
     // Scalar Mult
     NEW_METHOD(crypto_scalarmult);
